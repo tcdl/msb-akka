@@ -1,5 +1,3 @@
-net.virtualvoid.sbt.graph.Plugin.graphSettings
-
 val akka_version = "2.3.9"
 
 lazy val root = (project in file(".")).
