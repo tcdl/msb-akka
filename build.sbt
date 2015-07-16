@@ -4,7 +4,7 @@ lazy val root = (project in file(".")).
   settings (
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
-    version := "0.1.0",
+    version := "0.1.0-SNAPSHOT",
     scalaVersion := "2.11.5",
     libraryDependencies ++= (dependencies ++ testDependencies),
     resolvers ++= dependencyResolvers
