@@ -1,13 +1,17 @@
+
 val akka_version = "2.3.9"
 
 lazy val root = (project in file(".")).
   settings (
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
-    version := "0.1.0-SNAPSHOT",
+    version := "0.1.1",
     scalaVersion := "2.11.5",
+    bintrayOrganization := Some("tcdl"),
+    bintrayRepository := "releases",
     libraryDependencies ++= (dependencies ++ testDependencies),
-    resolvers ++= dependencyResolvers
+    resolvers ++= dependencyResolvers,
+    licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
   )
 
 val dependencyResolvers = Seq(
@@ -25,4 +29,6 @@ val testDependencies = Seq (
   "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test",
   "com.typesafe.akka" %% "akka-testkit" % akka_version % "test"
 )
+
+
 
