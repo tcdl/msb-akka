@@ -15,8 +15,10 @@ class MsbImpl(system: ActorSystem) extends Extension {
   // init jackson for marshalling the json body in the payload
   Utils.getJsonObjectMapper.registerModule(DefaultScalaModule)
 
+  val config = MsbConfig(system).msbConfig
+
   val context = new MsbContextBuilder()
-    .withConfig(system.settings.config)
+    .withConfig(config)
     .withShutdownHook(true)
     .build()
 
