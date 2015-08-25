@@ -7,7 +7,8 @@ class MsbConfigImpl(config: Config) extends Extension {
 
   private val msbConfigPath: Option[String] = if (config.hasPath("msbConfigPath")) Some(config.getString("msbConfigPath")) else None
 
-  val msbConfig = if (msbConfigPath.isDefined) config.getConfig(msbConfigPath.get) else config
+  val msbConfig = if (msbConfigPath.isDefined) config.getConfig(msbConfigPath.get).withFallback(config) else config
+
 }
 
 object MsbConfig extends ExtensionId[MsbConfigImpl] with ExtensionIdProvider {
