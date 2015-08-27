@@ -5,7 +5,7 @@ lazy val root = (project in file(".")).
   settings (
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
-    version := "0.1.3-SNAPSHOT",
+    version := "0.1.3",
     scalaVersion := "2.11.5",
     bintrayOrganization := Some("tcdl"),
     bintrayRepository := "releases",
@@ -20,7 +20,7 @@ val dependencyResolvers = Seq(
 )
 
 val dependencies = Seq (
-  "io.github.tcdl.msb" % "msb-java-core" % "1.0.0",
+  "io.github.tcdl.msb" % "msb-java-core" % "1.1.0",
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.5.3",
   "com.typesafe.akka" %% "akka-actor" % akka_version
 )
