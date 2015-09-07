@@ -5,17 +5,17 @@ scala:
 jdk:
 - oraclejdk8
 script:
-  # Your normal script
-  - sbt ++$TRAVIS_SCALA_VERSION -J-XX:ReservedCodeCacheSize=256M clean coverage test
-
-  # Tricks to avoid unnecessary cache updates
-  - find $HOME/.sbt -name "*.lock" | xargs rm
-  - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
-after_success: "sbt coveralls"
+- sbt ++$TRAVIS_SCALA_VERSION -J-XX:ReservedCodeCacheSize=256M clean coverage test
+- find $HOME/.sbt -name "*.lock" | xargs rm
+- find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+after_success:
+- sbt coveralls
+- sbt 'release with-defaults'
+- sbt 'set version := (version in ThisBuild).value' publish
 env:
   coveralls:
     secure: c2DZAgGBPcUNheRZZjmwZlzshOb9bRiDdEtNBm8BCBmySBTlru+ozghxJFBSxSVJapYlQ5T8VukKjfvn/t++Iq2hjVXZZcP4JDfAhTqiQpvjHriqwhsNUPNEc82nj9yZcm6WYshwB+ra8YVq1IIkDQAri2F5eQAiOIwHqWBo6uGw+gcgKv+xEv8B36jgOm2s8a7cQLeBkotp+ZyukbcFlh7kJSjvyUxRTTtJJQnUlynPIZWP7o6T2gjLFvLJFU8Fjy1eJ0p+T8h0NVmU4AjBfsgz/dW+LCeKltJRka7An5TW2+3whofUC7kYHchFSQktCherbHb45RPC8Nzff27vM6+MqTdl3W9rn4Grje3BM+y1XJWTllcrM0y2VRDX+2ZYXxg0Z8AQhJFRaQaYfZdN2U0MjkGF7CMP7vcy8nZRxL/ScOrkAsCKSWzW4aTFmgTSuV5s7m0ZVO5LdJ4wP3OLSoXvEs7dBZy7YMEHIUhyb8pzvYNLI7shO/9aUW95xeDxhxPaUsqJnlu3pYgemM0UMR7bPP+3aBuYQWw0o54Do8If5l28u5D46II5QZAqRKIetvJGMOi2LBh1Ai/b+8J01eQEd9iVHqqbqqSXaOtKI18Y4T8xClkafWB2BTx+faBdiHL/h+KtQY83vEUif1bLVA/WZ/sg+Ow1b9AcyMXJs1o=
-cache:
+  cache:
   directories:
-    - $HOME/.ivy2/cache
-    - $HOME/.sbt/boot/
+  - "$HOME/.ivy2/cache"
+  - "$HOME/.sbt/boot/"
