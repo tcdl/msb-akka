@@ -20,7 +20,7 @@ val dependencyResolvers = Seq(
 )
 
 val dependencies = Seq (
-  "io.github.tcdl.msb" % "msb-java-core" % "1.1.0",
+  "io.github.tcdl.msb" % "msb-java-core" % "1.2.0",
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.5.3",
   "com.typesafe.akka" %% "akka-actor" % akka_version
 )
