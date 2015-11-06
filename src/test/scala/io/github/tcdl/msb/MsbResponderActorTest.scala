@@ -46,7 +46,7 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
 	  override val namespace = MsbResponderActorTest.this.namespace
 
     override def handleRequest = {
-      case p if p.bodyAs[String] == "ping" => reply(response("pong").build())
+      case (p, replyTo) if p.bodyAs[String] == "ping" => replyTo ! response("pong").build()
     }
 
   }

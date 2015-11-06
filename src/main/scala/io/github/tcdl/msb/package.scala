@@ -1,6 +1,11 @@
 package io.github.tcdl
 
-import io.github.tcdl.msb.api._
+import io.github.tcdl.msb.api.{Responder => JavaResponder}
+import io.github.tcdl.msb.api.Callback
+import io.github.tcdl.msb.api.MsbContext
+import io.github.tcdl.msb.api.MessageTemplate
+import io.github.tcdl.msb.api.ResponderServer
+import io.github.tcdl.msb.api.RequestOptions
 import io.github.tcdl.msb.api.ResponderServer.RequestHandler
 import io.github.tcdl.msb.api.message.Message
 import io.github.tcdl.msb.api.message.payload.Payload
@@ -16,8 +21,8 @@ package object msb {
 	  def call(arg: T): Unit = f(arg)
   }
 
-  implicit def function2RequestHandler(f: Function2[Payload, Responder, Unit]): RequestHandler = new RequestHandler() {
-	  def process(payload: Payload, responder: Responder): Unit = f(payload, responder)
+  implicit def function2RequestHandler(f: Function2[Payload, JavaResponder, Unit]): RequestHandler = new RequestHandler() {
+	  def process(payload: Payload, responder: JavaResponder): Unit = f(payload, responder)
   }
 
   implicit class ScalaPayload(p: Payload) {
@@ -25,7 +30,7 @@ package object msb {
   }
 
   implicit class ScalaMsbContext(ctx: MsbContext) {
-    def responderServer(ns: String, template: MessageTemplate = new MessageTemplate())(f: (Payload, Responder) => Unit): ResponderServer = {
+    def responderServer(ns: String, template: MessageTemplate = new MessageTemplate())(f: (Payload, JavaResponder) => Unit): ResponderServer = {
       ctx.getObjectFactory.createResponderServer(ns, template, f)
     }
   }
