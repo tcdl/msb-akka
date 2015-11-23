@@ -28,7 +28,7 @@ trait MsbResponderActor extends Actor {
 
   override def receive = {
     case IncomingRequest(payload, responder) =>
-      handleRequest(payload, Responder(responder))
+      handleRequest(payload, ResponderImpl(responder))
   }
 
   private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler)
@@ -46,7 +46,13 @@ object MsbResponderActor {
   private case class IncomingRequest(payload: Payload, responder: JavaResponder)
 }
 
-case class Responder(private val javaResponder: JavaResponder) {
+trait Responder {
+  def ! (payload: Payload)
+  def ! (msg: Ack)
+  def originalMessage : Message
+}
+
+case class ResponderImpl(private val javaResponder: JavaResponder) extends Responder {
 
   /** Respond to the requester with the given payload. */
   def ! (payload: Payload) = javaResponder.send(payload)
