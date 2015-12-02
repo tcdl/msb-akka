@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import io.github.tcdl.msb.MsbRequester.{Request, Response}
-import io.github.tcdl.msb.api.message.payload.Payload
+import io.github.tcdl.msb.api.message.payload.Payload.Builder
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.{Await, Promise}
@@ -45,11 +45,11 @@ class MsbRequesterTest extends TestKit(ActorSystem("msb-requester-test")) with I
   it should "reply if there's a response" in {
     val opts = MsbRequestOptions().withWaitForResponses(1)
     val requester = system.actorOf(MsbRequester.props(namespace, opts))
-    val responder = msbcontext.responderServer(namespace) { (req, responder) => responder.send(Response("pong").payload) }
+    val responder = msbcontext.responderServer(namespace) { (req, responder) => responder.send(new Builder().withBody("pong").build()) }
     responder.listen()
     
     requester ! Request("ping")
-    expectMsgClass(classOf[Payload]).bodyAs[String] shouldBe "pong"
+    expectMsgClass(classOf[Response]).body[String] shouldBe Some("pong")
   }
   
 }
