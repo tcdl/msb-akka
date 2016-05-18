@@ -1,31 +1,45 @@
 package io.github.tcdl.msb
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import io.github.tcdl.msb.MsbRequester.{Responses, Response, Request}
-import io.github.tcdl.msb.api.message.{Message, Acknowledge}
+import io.github.tcdl.msb.MsbRequester.{Request, Response, Responses, TargetNotConfigured}
+import io.github.tcdl.msb.api.MsbContext
+import io.github.tcdl.msb.api.message.Message
 import io.github.tcdl.msb.api.message.payload.Payload
 
-import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 
 class MsbRequester(namespace: String, options: MsbRequestOptions) extends Actor with ActorLogging {
-  
-  val msbcontext = Msb(context.system).context 
-  def requester = msbcontext.getObjectFactory.createRequester(namespace, options)
-  
+
+  def requester(context: MsbContext) = context.getObjectFactory.createRequester(namespace, options)
+
   override def receive = {
-    case r: Request => 
-      log.info(s"Publishing request to namespace '$namespace'.")
-      requester.onResponse(sendResponseBackTo(sender)).onEnd(sendResponseListBackTo(sender)).publish(r.payload)
+    case r: Request =>
+      r.targetId match {
+        case Some(id) =>
+          Msb(context.system).multiTargetContexts.get(id) match {
+            case Some(msbContext) => publish(r, Msb(context.system).context)
+            case None =>
+              log.error(s"Can not publish to '$namespace'. Configuration for target '$r.targetId' can not be found.")
+              sendResponse(sender, TargetNotConfigured(id))
+          }
+        case None => publish(r, Msb(context.system).context)
+      }
   }
 
-  def sendResponseListBackTo(s: ActorRef) = {l : java.util.List[Message] => s ! Responses(l.asScala.map(msg => Response(msg.getPayload)))}
-  def sendResponseBackTo(s: ActorRef) = { p: Payload => s ! Response(p) }
+  def publish(r: Request, msbContext: MsbContext) = {
+    log.info(s"Publishing request to namespace '$namespace'.")
+    requester(msbContext).onResponse(sendResponseBackTo(sender)).onEnd(sendResponseListBackTo(sender)).publish(r.payload)
+  }
+
+  def sendResponseListBackTo(s: ActorRef) = {l : java.util.List[Message] => sendResponse(s, Responses(l.asScala.map(msg => Response(msg.getPayload))))}
+  def sendResponseBackTo(s: ActorRef) = { p: Payload => sendResponse(s, Response(p)) }
+  def sendResponse(s: ActorRef, r: Any) = s ! r
 }
 
 object MsbRequester {
 
-  def props(namespace: String, options: MsbRequestOptions = MsbRequestOptions()) = 
+  def props(namespace: String, options: MsbRequestOptions = MsbRequestOptions()) =
     Props(new MsbRequester(namespace, options))
   
   sealed trait MsbPayload {
@@ -56,7 +70,8 @@ object MsbRequester {
                      bodyBuffer: Option[String] = None,
                      headers: Option[Any] = None,
                      params: Option[Any] = None,
-                     query: Option[Any] = None) extends MsbPayload {
+                     query: Option[Any] = None,
+                     targetId: Option[String] = None) extends MsbPayload {
     
     val statusCode: Option[Int] = None
     val statusMessage: Option[String] = None
@@ -77,5 +92,7 @@ object MsbRequester {
   object Request {
     def apply(body: Any): Request = Request(body = Some(body))
   }
+
+  case class TargetNotConfigured(targetId: String)
   
 }
