@@ -5,7 +5,7 @@ lazy val root = (project in file(".")).
   settings (
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
-    version := "0.1.8",
+    version := "0.1.9-SNAPSHOT",
     scalaVersion := "2.11.5",
     bintrayOrganization := Some("tcdl"),
     bintrayRepository := "releases",
