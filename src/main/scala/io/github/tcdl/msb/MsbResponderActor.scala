@@ -1,12 +1,12 @@
 package io.github.tcdl.msb
 
 import akka.actor.Actor
+import io.github.tcdl.msb.MsbModel.{Request, Response}
+import io.github.tcdl.msb.MsbResponderActor.{Ack, IncomingRequest, MsbRequestHandler}
+import io.github.tcdl.msb.api.message.payload.RestPayload
+import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Responder => JavaResponder}
+
 import scala.concurrent.duration.FiniteDuration
-import io.github.tcdl.msb.api.message.payload.Payload
-import io.github.tcdl.msb.api.ResponderServer.RequestHandler
-import io.github.tcdl.msb.MsbResponderActor.{ MsbRequestHandler, Ack, IncomingRequest }
-import io.github.tcdl.msb.api.message.Message
-import io.github.tcdl.msb.api.{MessageTemplate, Responder => JavaResponder, MsbContext}
 
 trait MsbResponderActor extends Actor {
 
@@ -18,8 +18,8 @@ trait MsbResponderActor extends Actor {
 
   def msbcontext: MsbContext = Msb(context.system).context
 
-  /** Create a payload builder with the given body. */
-  def response(body: Any): Payload.Builder = new Payload.Builder().withBody(body)
+  /** Create a response with the given body. */
+  def response(body: Any) = Response(body)
 
   override def preStart(): Unit = {
     super.preStart()
@@ -27,39 +27,36 @@ trait MsbResponderActor extends Actor {
   }
 
   override def receive = {
-    case IncomingRequest(payload, responder) =>
-      handleRequest(payload, ResponderImpl(responder))
+    case IncomingRequest(payload, ctx) =>
+      handleRequest(Request(payload), ResponderImpl(ctx.getResponder))
   }
 
-  private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler)
+  private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler, classOf[RestPayload[_, _, _, _]])
   private def objectFactory = msbcontext.getObjectFactory
 
-  private val requestHandler: RequestHandler = {
-    (payload: Payload, responder: JavaResponder) => self ! IncomingRequest(payload, responder)
+  private val requestHandler = {
+    (payload: RestPayload[_, _, _, _], ctx: ResponderContext) => self ! IncomingRequest(payload, ctx)
   }
 }
 
 object MsbResponderActor {
-  type MsbRequestHandler = PartialFunction[(Payload, Responder), Unit]
+  type MsbRequestHandler = PartialFunction[(Request, Responder), Unit]
   case class Ack(timeout: FiniteDuration, remaining: Int = 0)
 
-  private case class IncomingRequest(payload: Payload, responder: JavaResponder)
+  private case class IncomingRequest(payload: RestPayload[_, _, _, _], context: ResponderContext)
 }
 
 trait Responder {
-  def ! (payload: Payload)
+  def ! (response: Response)
   def ! (msg: Ack)
-  def originalMessage : Message
 }
 
 case class ResponderImpl(private val javaResponder: JavaResponder) extends Responder {
 
-  /** Respond to the requester with the given payload. */
-  def ! (payload: Payload) = javaResponder.send(payload)
+  /** Respond to the requester with the given response. */
+  def ! (response: Response) = javaResponder.send(response.payload)
 
   /** Send an ack back to the requester. */
   def ! (msg: Ack) = javaResponder.sendAck(msg.timeout.toMillis.toInt, msg.remaining)
 
-  /** Get the original message {@see io.github.tcdl.msb.api.Responder#getOriginalMessage()}.  */
-  def originalMessage : Message = javaResponder.getOriginalMessage
 }

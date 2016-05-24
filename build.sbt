@@ -20,14 +20,16 @@ val dependencyResolvers = Seq(
 )
 
 val dependencies = Seq (
-  "io.github.tcdl.msb" % "msb-java-core" % "1.2.0",
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.5.3",
+  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6",
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.7.3",
   "com.typesafe.akka" %% "akka-actor" % akka_version
 )
 
 val testDependencies = Seq (
   "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test",
-  "com.typesafe.akka" %% "akka-testkit" % akka_version % "test"
+  "com.typesafe.akka" %% "akka-testkit" % akka_version % "test",
+  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6" % "test" classifier "tests",
+  "org.mockito" % "mockito-all" % "1.10.19" % "test"
 )
 
 

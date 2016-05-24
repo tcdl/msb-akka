@@ -1,14 +1,18 @@
 package io.github.tcdl
 
-import io.github.tcdl.msb.api.{Responder => JavaResponder}
-import io.github.tcdl.msb.api.Callback
-import io.github.tcdl.msb.api.MsbContext
-import io.github.tcdl.msb.api.MessageTemplate
-import io.github.tcdl.msb.api.ResponderServer
-import io.github.tcdl.msb.api.RequestOptions
+import java.util.function.BiConsumer
+
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper, SerializationFeature}
+import com.fasterxml.jackson.datatype.jsr310.JSR310Module
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import io.github.tcdl.msb.api.ResponderServer.RequestHandler
+import io.github.tcdl.msb.api._
 import io.github.tcdl.msb.api.message.Message
-import io.github.tcdl.msb.api.message.payload.Payload
+import io.github.tcdl.msb.support.Utils
+
+import scala.reflect.ClassTag
+import scala.util.Try
 
 package object msb {
 
@@ -21,19 +25,29 @@ package object msb {
 	  def call(arg: T): Unit = f(arg)
   }
 
-  implicit def function2RequestHandler(f: (Payload, JavaResponder) => Unit): RequestHandler = new RequestHandler() {
-	  def process(payload: Payload, responder: JavaResponder): Unit = f(payload, responder)
+  implicit def function2RequestHandler[T](f: (T, ResponderContext) => Unit): RequestHandler[T] = new RequestHandler[T]() {
+	  def process(request: T, responderContext: ResponderContext): Unit = f(request, responderContext)
   }
 
-  implicit class ScalaPayload(p: Payload) {
-	  def bodyAs[T](implicit manifest: Manifest[T]): T = p.getBodyAs(manifest.runtimeClass).asInstanceOf[T]
+  implicit def functionToBiConsumer[T, U, R <: Any](f: (T, U) => R): BiConsumer[T, U] = new BiConsumer[T, U]() {
+    def accept(arg1: T, arg2: U): Unit = f(arg1, arg2)
   }
 
   implicit class ScalaMsbContext(ctx: MsbContext) {
-    def responderServer(ns: String, template: MessageTemplate = new MessageTemplate())(f: (Payload, JavaResponder) => Unit): ResponderServer = {
-      ctx.getObjectFactory.createResponderServer(ns, template, f)
+    def responderServer[T](ns: String, template: MessageTemplate = new MessageTemplate(), payloadClass: Class[T])(f: (T, ResponderContext) => Unit): ResponderServer = {
+      ctx.getObjectFactory.createResponderServer(ns, template, f, payloadClass)
     }
   }
+
+  def convert[T <: Any](source: Option[Any])(implicit tag: ClassTag[T]): Option[T] =
+    source.flatMap(s => Try(Option(Utils.convert(s, tag.runtimeClass, objectMapper).asInstanceOf[T])).toOption.flatten)
+
+  val objectMapper = new ObjectMapper()
+    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+    .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+    .registerModule(new JSR310Module)
+    .registerModule(DefaultScalaModule)
 
   case class MsbRequestOptions(acktimeout: Option[Int] = None,
                                messageTemplate: Option[MessageTemplate] = None,

@@ -9,7 +9,12 @@ class MsbConfigImpl(config: Config) extends Extension {
   private val msbConfigPath: Option[String] = if (config.hasPath("msbConfigPath")) Some(config.getString("msbConfigPath")) else None
 
   val msbConfig = if (msbConfigPath.isDefined) config.getConfig(msbConfigPath.get).withFallback(config) else config
-  val msbTargetsConfig = msbConfig.getConfigList("msbTargets").map(cfg => cfg.getString("targetId") -> cfg.withFallback(config)).toMap
+  val msbTargetsConfig = {
+    if (msbConfig.hasPath("msbTargets"))
+      msbConfig.getConfigList("msbTargets").map(cfg => cfg.getString("targetId") -> cfg.withFallback(config)).toMap
+    else Map[String, Config]()
+  }
+
 }
 
 object MsbConfig extends ExtensionId[MsbConfigImpl] with ExtensionIdProvider {
