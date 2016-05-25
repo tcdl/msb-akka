@@ -4,12 +4,13 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
-import io.github.tcdl.msb.MsbRequester.{Request, Response, Responses, TargetNotConfigured}
-import io.github.tcdl.msb.api.message.payload.Payload.Builder
+import io.github.tcdl.msb.MsbModel.{Request, Response}
+import io.github.tcdl.msb.MsbRequester.{PublishEnded, TargetNotConfigured}
+import io.github.tcdl.msb.api.message.payload.RestPayload
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpecLike, Matchers}
 
-import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Promise}
 
 class MsbRequesterTest extends TestKit(ActorSystem("msb-requester-test")) with ImplicitSender
   with FlatSpecLike with Matchers
@@ -35,7 +36,9 @@ class MsbRequesterTest extends TestKit(ActorSystem("msb-requester-test")) with I
 
     // given: a responder to catch the request
     val request = Promise[String]()
-    val responder = msbContext.responderServer(namespace) { (req, responder) => request.success(req.bodyAs[String]) }
+    val responder = msbContext.responderServer(namespace, payloadClass = classOf[RestPayload[_,_,_,String]]) {
+      (req, responder) => request.success(req.getBody)
+    }
     responder.listen()
 
     // when: the requester sends out a request
@@ -48,24 +51,28 @@ class MsbRequesterTest extends TestKit(ActorSystem("msb-requester-test")) with I
   it should "reply if there's a response" in {
     val opts = MsbRequestOptions().withWaitForResponses(1)
     val requester = system.actorOf(MsbRequester.props(namespace, opts))
-    val responder = msbContext.responderServer(namespace) { (req, responder) => responder.send(new Builder().withBody("pong").build()) }
+    val responder = msbContext.responderServer(namespace, payloadClass = classOf[RestPayload[_, _, _, String]]) {
+      (req, ctx) => ctx.getResponder.send(new RestPayload.Builder().withBody("pong").build())
+    }
     responder.listen()
 
     requester ! Request("ping")
-    expectMsgClass(classOf[Response]).body[String] shouldBe Some("pong")
-    expectMsgClass(classOf[Responses])
+    expectMsgClass(classOf[Response]).bodyAs[String] shouldBe Some("pong")
+    expectMsg(PublishEnded)
   }
 
   it should "reply from the correct target based on target id" in {
     val opts = MsbRequestOptions().withWaitForResponses(1)
     val targetId = "target1"
-    val requester = system.actorOf(MsbRequester.props(namespace = namespace, options = opts))
-    val responder = msbContexts(targetId).responderServer(namespace) { (req, responder) => responder.send(new Builder().withBody("pong").build()) }
+    val requester = system.actorOf(MsbRequester.props(namespace, opts))
+    val responder = msbContexts(targetId).responderServer(namespace, payloadClass = classOf[RestPayload[_, _, _, String]]) {
+      (req, ctx) => ctx.getResponder.send(new RestPayload.Builder().withBody("pong").build())
+    }
     responder.listen()
 
     requester ! Request(body = Some("ping"), targetId = Some(targetId))
-    expectMsgClass(classOf[Response]).body[String] shouldBe Some("pong")
-    expectMsgClass(classOf[Responses])
+    expectMsgClass(classOf[Response]).bodyAs[String] shouldBe Some("pong")
+    expectMsg(PublishEnded)
   }
 
   it should "reply TargetNotConfigured when there is no configuration for provided target id" in {
