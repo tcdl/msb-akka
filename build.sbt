@@ -20,7 +20,11 @@ val dependencyResolvers = Seq(
 )
 
 val dependencies = Seq (
-  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6",
+  //TODO: fix for SBT issue https://github.com/sbt/sbt/issues/2451
+  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6" artifacts(
+    Artifact("msb-java-core", "jar", "jar", classifier = None, configurations = List(Compile), url = None),
+    Artifact("msb-java-core", "jar", "jar", classifier = Some("tests"), configurations = List(Test), url = None)
+    ),
   "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.7.3",
   "com.typesafe.akka" %% "akka-actor" % akka_version
 )
@@ -28,7 +32,6 @@ val dependencies = Seq (
 val testDependencies = Seq (
   "org.scalatest" % "scalatest_2.11" % "2.2.4" % "test",
   "com.typesafe.akka" %% "akka-testkit" % akka_version % "test",
-  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6" % "test" classifier "tests",
   "org.mockito" % "mockito-all" % "1.10.19" % "test"
 )
 
