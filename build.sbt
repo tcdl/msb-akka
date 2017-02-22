@@ -16,12 +16,14 @@ lazy val root = (project in file(".")).
 
 val dependencyResolvers = Seq(
   "TCDL" at "https://dl.bintray.com/tcdl/releases",
-  "Maven Central" at "http://repo1.maven.org/maven2"
+  "Maven Central" at "http://repo1.maven.org/maven2",
+  "Jfrog snapshots" at "http://oss.jfrog.org/artifactory/simple/oss-snapshot-local"
+  //"Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
 )
 
 val dependencies = Seq (
   //TODO: fix for SBT issue https://github.com/sbt/sbt/issues/2451
-  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6" artifacts(
+  "io.github.tcdl.msb" % "msb-java-core" % "1.4.7-SNAPSHOT" artifacts(
     Artifact("msb-java-core", "jar", "jar", classifier = None, configurations = List(Compile), url = None),
     Artifact("msb-java-core", "jar", "jar", classifier = Some("tests"), configurations = List(Test), url = None)
     ),

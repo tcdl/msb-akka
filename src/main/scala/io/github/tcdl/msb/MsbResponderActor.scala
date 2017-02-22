@@ -2,7 +2,7 @@ package io.github.tcdl.msb
 
 import akka.actor.Actor
 import io.github.tcdl.msb.MsbModel.{Request, Response}
-import io.github.tcdl.msb.MsbResponderActor.{Ack, IncomingRequest, MsbRequestHandler}
+import io.github.tcdl.msb.MsbResponderActor.{MsbRequestHandler}
 import io.github.tcdl.msb.api.message.payload.RestPayload
 import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Responder => JavaResponder}
 
@@ -41,12 +41,15 @@ trait MsbResponderActor extends Actor {
 
 object MsbResponderActor {
   type MsbRequestHandler = PartialFunction[(Request, Responder), Unit]
-  case class Ack(timeout: FiniteDuration, remaining: Int = 0)
 
-  private case class IncomingRequest(payload: RestPayload[_, _, _, _], context: ResponderContext)
+
 }
 
+case class IncomingRequest(payload: RestPayload[_, _, _, _], context: ResponderContext)
+
 trait Responder {
+  case class Ack(timeout: FiniteDuration, remaining: Int = 0)
+
   def ! (response: Response)
   def ! (msg: Ack)
 }
