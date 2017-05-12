@@ -6,17 +6,29 @@ import io.github.tcdl.msb.MsbResponderActor.{Ack, IncomingRequest, MsbRequestHan
 import io.github.tcdl.msb.api.message.payload.RestPayload
 import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Responder => JavaResponder}
 
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.FiniteDuration
 
 trait MsbResponderActor extends Actor {
 
+  private val msb = Msb(context.system)
+  private lazy val responderConfig: ResponderConfig = MsbConfig(context.system).responderConfig(msbTarget)
+
   /** The namespace of the topic on which the ResponderServer needs to subscribe. */
   def namespace: String
 
-  /** A partial function from Payload to Unit that's responsible for handling the incoming requests. */
+  /** A partial function from Payload to Unit that's responsible for handling the incoming requests.
+    *
+    * If this handler returns a Future[_], the responder will block and wait until it either completes or the
+    * request-handling-timeout expires (cfr. configuration).
+    */
   def handleRequest: MsbRequestHandler
 
-  def msbcontext: MsbContext = Msb(context.system).context
+  /** The msbTarget that needs to be used to choose the correct msbContext. */
+  def msbTarget: Option[String] = None
+
+  /** The msb context that'll be used for this responder. */
+  def msbContext: MsbContext = msbTarget.map(t => msb.multiTargetContexts(t)) getOrElse msb.context
 
   /** Create a response with the given body. */
   def response(body: Any) = Response(body)
@@ -26,24 +38,36 @@ trait MsbResponderActor extends Actor {
     responderServer.listen()
   }
 
-  override def receive = {
-    case IncomingRequest(payload, ctx) =>
-      handleRequest(Request(payload), ResponderImpl(ctx.getResponder))
+  override def receive: Receive = {
+    case IncomingRequest(payload, responder, promise) =>
+      try {
+        handleRequest(Request(payload), responder) match {
+          case f: Future[_] => promise.completeWith(f)
+          case somethingElse => promise.success(somethingElse)
+        }
+      } catch {
+        case e: Throwable => promise.failure(e)
+      }
   }
 
   private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler, classOf[RestPayload[_, _, _, _]])
-  private def objectFactory = msbcontext.getObjectFactory
+  private def objectFactory = msbContext.getObjectFactory
 
-  private val requestHandler = {
-    (payload: RestPayload[_, _, _, _], ctx: ResponderContext) => self ! IncomingRequest(payload, ctx)
+  private val requestHandler: (RestPayload[_, _, _, _], ResponderContext) => Unit = { (payload, ctx) =>
+    val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
+    self ! request
+    Await.ready(request.promise.future, responderConfig.`request-handling-timeout`)
   }
 }
 
 object MsbResponderActor {
-  type MsbRequestHandler = PartialFunction[(Request, Responder), Unit]
+  type MsbRequestHandler = PartialFunction[(Request, Responder), Any]
+
   case class Ack(timeout: FiniteDuration, remaining: Int = 0)
 
-  private case class IncomingRequest(payload: RestPayload[_, _, _, _], context: ResponderContext)
+  private case class IncomingRequest(payload: RestPayload[_, _, _, _],
+                                     responder: Responder,
+                                     promise: Promise[Any] = Promise[Any])
 }
 
 trait Responder {
