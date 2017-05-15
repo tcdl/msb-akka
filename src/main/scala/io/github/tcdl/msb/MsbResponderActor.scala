@@ -1,6 +1,6 @@
 package io.github.tcdl.msb
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorLogging}
 import io.github.tcdl.msb.MsbModel.{Request, Response}
 import io.github.tcdl.msb.MsbResponderActor.{Ack, IncomingRequest, MsbRequestHandler}
 import io.github.tcdl.msb.api.message.payload.RestPayload
@@ -9,7 +9,7 @@ import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Re
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.FiniteDuration
 
-trait MsbResponderActor extends Actor {
+trait MsbResponderActor extends Actor with ActorLogging {
 
   private val msb = Msb(context.system)
   private lazy val responderConfig: ResponderConfig = MsbConfig(context.system).responderConfig(msbTarget)
@@ -33,6 +33,9 @@ trait MsbResponderActor extends Actor {
   /** Create a response with the given body. */
   def response(body: Any) = Response(body)
 
+  /** The number of times the responder should attempt to handle an incoming message if the processing fails. */
+  def retryAttempts: Int = 0
+
   override def preStart(): Unit = {
     super.preStart()
     responderServer.listen()
@@ -54,9 +57,20 @@ trait MsbResponderActor extends Actor {
   private def objectFactory = msbContext.getObjectFactory
 
   private val requestHandler: (RestPayload[_, _, _, _], ResponderContext) => Unit = { (payload, ctx) =>
-    val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
-    self ! request
-    Await.ready(request.promise.future, responderConfig.`request-handling-timeout`)
+    def tryHandlingRequest(attemptsLeft: Int): Unit = {
+      val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
+
+      self ! request
+      Await.ready(request.promise.future, responderConfig.`request-handling-timeout`)
+
+      if(attemptsLeft > 0 && request.promise.future.failed.isCompleted) {
+        import context.dispatcher
+        request.promise.future onFailure { case e: Throwable => log.error(e, s"Exception was thrown while processing request, retries left: $attemptsLeft")}
+        tryHandlingRequest(attemptsLeft - 1)
+      }
+    }
+
+    tryHandlingRequest(retryAttempts)
   }
 }
 

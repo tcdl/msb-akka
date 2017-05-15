@@ -1,20 +1,21 @@
 package io.github.tcdl.msb
 
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.concurrent.duration._
-import org.scalatest.Matchers
-import org.scalatest.WordSpecLike
+import org.scalatest.{BeforeAndAfterEach, Matchers, WordSpecLike}
 import org.scalatest.concurrent.Eventually
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.testkit.{ImplicitSender, TestKit}
-import io.github.tcdl.msb.api.{MessageContext, MsbContext, RequestOptions}
+import io.github.tcdl.msb.api._
 import io.github.tcdl.msb.api.message.payload.RestPayload
 
 import scala.concurrent.{Await, Future, Promise, blocking}
 
 class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
-  with WordSpecLike with Matchers with Eventually with ImplicitSender {
+  with WordSpecLike with Matchers with Eventually with BeforeAndAfterEach
+  with ImplicitSender {
 
   import org.scalatest.OptionValues._
   import system.dispatcher
@@ -23,6 +24,13 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
   val namespace: String = "msb-akka:responder-test"
 
   val responder: ActorRef = system.actorOf(Props(new MsbResponderActorForTest()))
+  var desiredRetries: Int = 0
+  val executions: AtomicInteger = new AtomicInteger()
+
+  override def beforeEach(): Unit = {
+    desiredRetries = 0
+    executions.set(0)
+  }
 
   "An MsbResponderActor" when {
 
@@ -57,17 +65,53 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
         assert(actualMaxRunning <= 1, s"No more than 1 jobs should've run in parallel, but was $actualMaxRunning")
       }
     }
+
+    "handleRequest fails" should {
+      "be retried (when configured to do so)" in {
+        desiredRetries = 1
+        val end: Promise[String] = Promise()
+
+        sendRequest("kaboem", onResponse = (p, _) => ())
+        awaitAssert(executions.get() shouldBe 2)
+      }
+
+      "be retried (when configured to do so) (async)" in {
+        desiredRetries = 1
+        val end: Promise[String] = Promise()
+
+        sendRequest("async kaboem", onResponse = (p, _) => ())
+        awaitAssert(executions.get() shouldBe 2)
+      }
+
+      "not be retried" in {
+        val end: Promise[String] = Promise()
+
+        sendRequest("kaboem", onResponse = (p, _) => ())
+        awaitAssert(executions.get() shouldBe 1)
+      }
+
+      "not be retried (async)" in {
+        val end: Promise[String] = Promise()
+
+        sendRequest("async kaboem", onResponse = (p, _) => ())
+        awaitAssert(executions.get() shouldBe 1)
+      }
+    }
   }
 
 
   private def sendRequest(body: String,
                           onResponse: (RestPayload[Any, Any, Any, String], MessageContext) => Unit,
-                          requestResponse: RequestOptions = new RequestOptions.Builder().withWaitForResponses(1).build()) = {
+                          requestResponse: RequestOptions = new RequestOptions.Builder().withWaitForResponses(1).build(),
+                          onEnd: Option[Void => Unit] = None) = {
 
-    msbContext.getObjectFactory
+    val requester: Requester[RestPayload[Any, Any, Any, String]] = msbContext.getObjectFactory
       .createRequester(namespace, requestResponse, classOf[RestPayload[Any, Any, Any, String]])
       .onResponse(onResponse)
-      .publish(new RestPayload.Builder().withBody(body).build(), null.asInstanceOf[String])
+
+    onEnd.foreach { f => requester.onEnd(f) }
+
+    requester.publish(new RestPayload.Builder().withBody(body).build(), null.asInstanceOf[String])
   }
 
   private class MsbResponderActorForTest extends MsbResponderActor {
@@ -75,6 +119,8 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
 	  override val namespace: String = MsbResponderActorTest.this.namespace
     var running: Map[UUID, Promise[Unit]] = Map()
     var maxRunning: Int = 0
+
+    override def retryAttempts: Int = desiredRetries
 
     override def handleRequest: PartialFunction[(MsbModel.Request, Responder), Any] = {
       case (p, replyTo) if p.bodyAs[String].contains("ping") =>
@@ -87,6 +133,9 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
         context.system.scheduler.scheduleOnce(100.millis, self, (id, replyTo))(context.dispatcher)
 
         running(id).future
+
+      case (p, replyTo) if p.bodyAs[String].contains("kaboem")       => executions.incrementAndGet(); throw new IllegalStateException("Ouch")
+      case (p, replyTo) if p.bodyAs[String].contains("async kaboem") => executions.incrementAndGet(); Future.failed(new IllegalStateException("Ouch"))
     }
 
     override def aroundReceive(receive: Receive, msg: Any): Unit = {
@@ -102,4 +151,7 @@ class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
       }
     }
   }
+}
+
+object MsbResponderActorTest {
 }
