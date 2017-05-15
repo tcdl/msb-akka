@@ -11,7 +11,8 @@ lazy val root = (project in file(".")).
     bintrayRepository := "releases",
     libraryDependencies ++= (dependencies ++ testDependencies),
     resolvers ++= dependencyResolvers,
-    licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+    licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+    publishArtifact in (Test, packageBin) := true
   )
 
 val dependencyResolvers = Seq(
