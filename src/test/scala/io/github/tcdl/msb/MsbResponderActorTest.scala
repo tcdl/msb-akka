@@ -13,7 +13,7 @@ import io.github.tcdl.msb.api.message.payload.RestPayload
 
 import scala.concurrent.{Await, Future, Promise, blocking}
 
-class MsbResponderActorTest extends TestKit(ActorSystem("msb-actor-test"))
+class MsbResponderActorTest extends TestKit(MsbTests.actorSystem)
   with WordSpecLike with Matchers with Eventually with BeforeAndAfterEach
   with ImplicitSender {
 

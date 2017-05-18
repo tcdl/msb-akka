@@ -2,7 +2,6 @@ package io.github.tcdl.msb
 
 import java.util.UUID
 
-import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import io.github.tcdl.msb.MsbModel.{Request, Response}
 import io.github.tcdl.msb.MsbRequester.{PublishEnded, TargetNotConfigured}
@@ -12,7 +11,7 @@ import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpecLike, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Promise}
 
-class MsbRequesterTest extends TestKit(ActorSystem("msb-requester-test")) with ImplicitSender
+class MsbRequesterTest extends TestKit(MsbTests.actorSystem) with ImplicitSender
   with FlatSpecLike with Matchers
   with BeforeAndAfter
   with BeforeAndAfterAll {

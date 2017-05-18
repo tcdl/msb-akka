@@ -1,16 +1,21 @@
 package io.github.tcdl.msb
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.dispatch.MessageDispatcher
 import io.github.tcdl.msb.MsbModel.{Request, Response}
 import io.github.tcdl.msb.MsbRequester.{PublishEnded, TargetNotConfigured}
 import io.github.tcdl.msb.api.message.payload.RestPayload
-import io.github.tcdl.msb.api.{MessageContext, MsbContext}
+import io.github.tcdl.msb.api.{MessageContext, MsbContext, Requester}
+
+import scala.concurrent.{Future, blocking}
 
 class MsbRequester(namespace: String, options: MsbRequestOptions) extends Actor with ActorLogging {
 
-  def requester(context: MsbContext) = context.getObjectFactory.createRequester(namespace, options, classOf[RestPayload[_,_,_,_]])
+  private val msbDispatcher: MessageDispatcher = context.system.dispatchers.lookup("msb-publishing-dispatcher")
+  def requester(context: MsbContext): Requester[RestPayload[_, _, _, _]] =
+    context.getObjectFactory.createRequester(namespace, options, classOf[RestPayload[_,_,_,_]])
 
-  override def receive = {
+  override def receive: PartialFunction[Any, Unit] = {
     case r: Request =>
       r.targetId match {
         case Some(id) =>
@@ -24,14 +29,18 @@ class MsbRequester(namespace: String, options: MsbRequestOptions) extends Actor 
       }
   }
 
-  def publish(r: Request, msbContext: MsbContext) = {
-    log.info(s"Publishing request to namespace '$namespace'.")
-    requester(msbContext).onResponse(sendResponseBackTo(sender)).onEnd(sendEndMessageBackToSender(sender)).publish(r.payload, null.asInstanceOf[String])
+  def publish(r: Request, msbContext: MsbContext, replyTo: ActorRef = sender()): Future[Unit] = {
+    Future { blocking {
+      requester(msbContext)
+        .onResponse(sendResponseBackTo(replyTo))
+        .onEnd(sendEndMessageBackToSender(replyTo))
+        .publish(r.payload, null.asInstanceOf[String])
+    }} (msbDispatcher)
   }
 
-  def sendEndMessageBackToSender(s: ActorRef) = { _: Void => sendMessage(s, PublishEnded) }
-  def sendResponseBackTo(s: ActorRef) = { (payload: RestPayload[_,_,_,_], _: MessageContext) => sendMessage(s, Response(payload)) }
-  def sendMessage(s: ActorRef, r: Any) = s ! r
+  private def sendEndMessageBackToSender(s: ActorRef) = { _: Void => sendMessage(s, PublishEnded) }
+  private def sendResponseBackTo(s: ActorRef) = { (payload: RestPayload[_,_,_,_], _: MessageContext) => sendMessage(s, Response(payload)) }
+  private def sendMessage(s: ActorRef, r: Any) = s ! r
 }
 
 object MsbRequester {
