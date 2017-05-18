@@ -10,11 +10,14 @@ import io.github.tcdl.msb.api.ResponderServer.RequestHandler
 import io.github.tcdl.msb.api._
 import io.github.tcdl.msb.api.message.Message
 import io.github.tcdl.msb.support.Utils
+import org.slf4j.LoggerFactory
 
 import scala.reflect.ClassTag
 import scala.util.Try
 
 package object msb {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   implicit def function2EndCallback(f: (List[Message]) => Unit): Callback[java.util.List[Message]] = new Callback[java.util.List[Message]]() {
 	  import scala.collection.JavaConverters._
@@ -39,8 +42,16 @@ package object msb {
     }
   }
 
-  def convert[T <: Any](source: Option[Any])(implicit tag: ClassTag[T]): Option[T] =
-    source.flatMap(s => Try(Option(Utils.convert(s, tag.runtimeClass, objectMapper).asInstanceOf[T])).toOption.flatten)
+  def convert[T <: Any](source: Option[Any])(implicit tag: ClassTag[T]): Option[T] = {
+    source.flatMap(s => {
+      try {
+        Option(Utils.convert(s, tag.runtimeClass, objectMapper).asInstanceOf[T])
+      } catch { case t: Throwable =>
+        log.error(s"Unable to convert source to an instance of ${tag.runtimeClass}", t)
+        None
+      }
+    })
+  }
 
   val objectMapper = new ObjectMapper()
     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
