@@ -2,8 +2,9 @@ package io.github.tcdl.msb
 
 import akka.actor.{Actor, ActorLogging}
 import io.github.tcdl.msb.MsbModel.{Request, Response}
-import io.github.tcdl.msb.MsbResponderActor.{Ack, IncomingRequest, MsbRequestHandler}
+import io.github.tcdl.msb.MsbResponderActor.{Ack, GetMessageCount, IncomingRequest, MsbRequestHandler}
 import io.github.tcdl.msb.api.message.payload.RestPayload
+import io.github.tcdl.msb.api.metrics.{Gauge, MetricSet}
 import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Responder => JavaResponder}
 
 import scala.concurrent.{Await, Future, Promise}
@@ -51,6 +52,12 @@ trait MsbResponderActor extends Actor with ActorLogging {
       } catch {
         case e: Throwable => promise.failure(e)
       }
+    case GetMessageCount =>
+      val count = Option(responderServer.getMetrics.getMetric(MetricSet.MESSAGE_COUNT_METRIC)).flatMap {
+        case m: Gauge[_] => Option(m.getValue).map { case l: Long => l }
+        case _ => None
+      }
+      sender ! count
   }
 
   private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler, classOf[RestPayload[_, _, _, _]])
@@ -82,6 +89,8 @@ object MsbResponderActor {
   private case class IncomingRequest(payload: RestPayload[_, _, _, _],
                                      responder: Responder,
                                      promise: Promise[Any] = Promise[Any])
+
+  case object GetMessageCount
 }
 
 trait Responder {

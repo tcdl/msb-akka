@@ -22,7 +22,7 @@ class MsbRequester(namespace: String, options: MsbRequestOptions) extends Actor 
           Msb(context.system).multiTargetContexts.get(id) match {
             case Some(msbContext) => publish(r, msbContext)
             case None =>
-              log.error(s"Can not publish to '$namespace'. Configuration for target '$r.targetId' can not be found.")
+              log.error(s"Can not publish to '$namespace'. Configuration for target '${r.targetId}' can not be found.")
               sendMessage(sender, TargetNotConfigured(id))
           }
         case None => publish(r, Msb(context.system).context)

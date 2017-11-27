@@ -22,7 +22,7 @@ val dependencyResolvers = Seq(
 
 val dependencies = Seq (
   //TODO: fix for SBT issue https://github.com/sbt/sbt/issues/2451
-  "io.github.tcdl.msb" % "msb-java-core" % "1.4.6" artifacts(
+  "io.github.tcdl.msb" % "msb-java-core" % "1.6.4" artifacts(
     Artifact("msb-java-core", "jar", "jar", classifier = None, configurations = List(Compile), url = None),
     Artifact("msb-java-core", "jar", "jar", classifier = Some("tests"), configurations = List(Test), url = None)
     ),
