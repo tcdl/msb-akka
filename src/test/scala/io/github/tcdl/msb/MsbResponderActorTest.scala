@@ -3,15 +3,17 @@ package io.github.tcdl.msb
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
-import scala.concurrent.duration._
-import org.scalatest.{BeforeAndAfterEach, Matchers, WordSpecLike}
-import org.scalatest.concurrent.Eventually
-import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.actor.{ActorRef, Props}
 import akka.testkit.{ImplicitSender, TestKit}
+import io.github.tcdl.msb.MsbResponderActor.GetMessageCount
 import io.github.tcdl.msb.api._
 import io.github.tcdl.msb.api.message.payload.RestPayload
+import io.github.tcdl.msb.mock.adapterfactory.SafeTestMsbConsumerAdapter
+import org.scalatest.concurrent.Eventually
+import org.scalatest.{BeforeAndAfterEach, Matchers, WordSpecLike}
 
-import scala.concurrent.{Await, Future, Promise, blocking}
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future, Promise}
 
 class MsbResponderActorTest extends TestKit(MsbTests.actorSystem)
   with WordSpecLike with Matchers with Eventually with BeforeAndAfterEach
@@ -95,6 +97,15 @@ class MsbResponderActorTest extends TestKit(MsbTests.actorSystem)
 
         sendRequest("async kaboem", onResponse = (p, _) => ())
         awaitAssert(executions.get() shouldBe 1)
+      }
+    }
+
+    "requesting message count" should {
+      "return message count" in {
+        SafeTestMsbConsumerAdapter.setMessageCount(10L)
+        responder ! GetMessageCount
+
+        expectMsg(5.seconds, Some(10))
       }
     }
   }

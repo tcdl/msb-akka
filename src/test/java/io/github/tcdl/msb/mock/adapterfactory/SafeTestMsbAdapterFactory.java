@@ -2,10 +2,10 @@ package io.github.tcdl.msb.mock.adapterfactory;
 
 import io.github.tcdl.msb.adapters.AdapterFactory;
 import io.github.tcdl.msb.adapters.ConsumerAdapter;
-import io.github.tcdl.msb.adapters.MessageHandlerInvokeStrategy;
 import io.github.tcdl.msb.adapters.ProducerAdapter;
+import io.github.tcdl.msb.api.RequestOptions;
+import io.github.tcdl.msb.api.ResponderOptions;
 import io.github.tcdl.msb.config.MsbConfig;
-import io.github.tcdl.msb.impl.SimpleMessageHandlerInvokeStrategyImpl;
 
 /**
  * This class is for testing purposes only and is intended as a more multithreading friendly alternative to
@@ -21,9 +21,9 @@ public class SafeTestMsbAdapterFactory implements AdapterFactory {
     }
 
     @Override
-    public ProducerAdapter createProducerAdapter(String namespace) {
-        TestMsbProducerAdapter producerAdapter = new TestMsbProducerAdapter(namespace, storage);
-        storage.addProducerAdapter(namespace, producerAdapter);
+    public ProducerAdapter createProducerAdapter(String topic, RequestOptions requestOptions) {
+        TestMsbProducerAdapter producerAdapter = new TestMsbProducerAdapter(topic, storage);
+        storage.addProducerAdapter(topic, producerAdapter);
         return producerAdapter;
     }
 
@@ -35,8 +35,16 @@ public class SafeTestMsbAdapterFactory implements AdapterFactory {
     }
 
     @Override
-    public MessageHandlerInvokeStrategy createMessageHandlerInvokeStrategy(String topic) {
-        return new SimpleMessageHandlerInvokeStrategyImpl();
+    public ConsumerAdapter createConsumerAdapter(String topic, ResponderOptions responderOptions, boolean b) {
+        ResponderOptions effectiveResponderOptions = responderOptions != null ? responderOptions: ResponderOptions.DEFAULTS;
+        SafeTestMsbConsumerAdapter consumerAdapter = new SafeTestMsbConsumerAdapter(topic, storage);
+        storage.addConsumerAdapter(topic, effectiveResponderOptions.getBindingKeys(), consumerAdapter);
+        return consumerAdapter;
+    }
+
+    @Override
+    public boolean isUseMsbThreadingModel() {
+        return false;
     }
 
     @Override
