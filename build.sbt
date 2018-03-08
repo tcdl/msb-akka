@@ -1,5 +1,7 @@
 
 val akka_version = "2.3.9"
+import sbtrelease._
+import ReleaseTransformations._
 
 lazy val root = (project in file(".")).
   settings (
@@ -9,6 +11,8 @@ lazy val root = (project in file(".")).
     scalaVersion := "2.11.5",
     bintrayOrganization := Some("tcdl"),
     bintrayRepository := "releases",
+    releaseVersionBump := sbtrelease.Version.Bump.Minor,
+    releaseNextVersion :=  { ver => Version(ver).map(_.bumpMinor.string).getOrElse(versionFormatError) },
     libraryDependencies ++= (dependencies ++ testDependencies),
     resolvers ++= dependencyResolvers,
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
@@ -36,5 +40,14 @@ val testDependencies = Seq (
   "org.mockito" % "mockito-all" % "1.10.19" % "test"
 )
 
-
+releaseProcess := Seq(
+  inquireVersions,
+  setReleaseVersion,
+  tagRelease,
+  commitReleaseVersion, 
+  setNextVersion,                         
+  commitNextVersion,
+  pushChanges 
+ 
+)
 
