@@ -2,13 +2,15 @@ package io.github.tcdl.msb
 
 import akka.actor.{Actor, ActorLogging}
 import io.github.tcdl.msb.MsbModel.{Request, Response}
-import io.github.tcdl.msb.MsbResponderActor.{Ack, GetMessageCount, IncomingRequest, MsbRequestHandler}
+import io.github.tcdl.msb.MsbResponderActor._
 import io.github.tcdl.msb.api.message.payload.RestPayload
 import io.github.tcdl.msb.api.metrics.{Gauge, MetricSet}
 import io.github.tcdl.msb.api.{MessageTemplate, MsbContext, ResponderContext, Responder => JavaResponder}
 
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.Future.firstCompletedOf
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{Future, Promise}
+import scala.util.Failure
 
 trait MsbResponderActor extends Actor with ActorLogging {
 
@@ -34,8 +36,15 @@ trait MsbResponderActor extends Actor with ActorLogging {
   /** Create a response with the given body. */
   def response(body: Any) = Response(body)
 
-  /** The number of times the responder should attempt to handle an incoming message if the processing fails. */
-  def retryAttempts: Int = 0
+  /** A partial function that will determine the retry mode to choose based on the exception that was thrown during the
+    * processing of the message.
+    *
+    * Possible outcomes are:
+    *   - NoRetry: The message gets rejected.
+    *   - RetryOnce: The message gets retried once, after that it gets rejected.
+    *   - Retry: The message gets retried, potentially creating an infinite loop.
+    */
+  def retryMode: PartialFunction[Throwable, RetryMode] = PartialFunction.empty
 
   override def preStart(): Unit = {
     super.preStart()
@@ -63,21 +72,35 @@ trait MsbResponderActor extends Actor with ActorLogging {
   private lazy val responderServer = objectFactory.createResponderServer(namespace, new MessageTemplate(), requestHandler, classOf[RestPayload[_, _, _, _]])
   private def objectFactory = msbContext.getObjectFactory
 
+  import context.dispatcher
+
   private val requestHandler: (RestPayload[_, _, _, _], ResponderContext) => Unit = { (payload, ctx) =>
-    def tryHandlingRequest(attemptsLeft: Int): Unit = {
-      val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
+    val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
 
-      self ! request
-      Await.ready(request.promise.future, responderConfig.`request-handling-timeout`)
+    // Don't auto acknowledge
+    ctx.getAcknowledgementHandler.setAutoAcknowledgement(false)
 
-      if(attemptsLeft > 0 && request.promise.future.failed.isCompleted) {
-        import context.dispatcher
-        request.promise.future onFailure { case e: Throwable => log.error(e, s"Exception was thrown while processing request, retries left: $attemptsLeft")}
-        tryHandlingRequest(attemptsLeft - 1)
-      }
+    // Trigger request
+    self ! request
+
+    // Set up a timer to trigger the timeout
+    val timeout = akka.pattern.after(responderConfig.`request-handling-timeout`, context.system.scheduler) {
+      throw new IllegalStateException(s"MSBResponder message handling timed out after ${responderConfig.`request-handling-timeout`}.")
     }
 
-    tryHandlingRequest(retryAttempts)
+    // Handle the results
+    firstCompletedOf(timeout :: request.promise.future :: Nil) onComplete {
+      case scala.util.Success(_) => ctx.getAcknowledgementHandler.confirmMessage()
+      case Failure(e) =>
+        val mode = retryMode.orElse[Throwable, RetryMode]({ case _: Throwable => NoRetry })(e)
+        log.error(e, s"Unexpected failure while handling MSB message (retry mode for this message: {}).", mode)
+
+        mode match {
+          case NoRetry => ctx.getAcknowledgementHandler.rejectMessage()
+          case RetryOnce => ctx.getAcknowledgementHandler.retryMessageFirstTime()
+          case Retry => ctx.getAcknowledgementHandler.retryMessage()
+        }
+    }
   }
 }
 
@@ -91,6 +114,11 @@ object MsbResponderActor {
                                      promise: Promise[Any] = Promise[Any])
 
   case object GetMessageCount
+
+  sealed trait RetryMode
+  case object NoRetry extends RetryMode
+  case object RetryOnce extends RetryMode
+  case object Retry extends RetryMode
 }
 
 trait Responder {
