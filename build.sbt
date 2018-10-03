@@ -6,14 +6,14 @@ lazy val root = (project in file(".")).
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
     version := "0.1.16-SNAPSHOT",
-    scalaVersion := "2.12.6",
+    scalaVersion := "2.12.7",
     bintrayOrganization := Some("tcdl"),
     bintrayRepository := "releases",
     libraryDependencies ++= (dependencies ++ testDependencies),
     resolvers ++= dependencyResolvers,
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
     publishArtifact in (Test, packageBin) := true,
-    crossScalaVersions := Seq("2.11.8", "2.12.6")
+    crossScalaVersions := Seq("2.11.8", "2.12.7")
   )
 
 val dependencyResolvers = Seq(
