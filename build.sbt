@@ -7,6 +7,12 @@ lazy val root = (project in file(".")).
     name := "msb-akka",
     version := "0.1.16-SNAPSHOT",
     scalaVersion := "2.12.7",
+    scalacOptions := Seq(
+      "-unchecked",
+      "-deprecation",
+      "-feature",
+      "-encoding", "utf8"
+    ),
     bintrayOrganization := Some("tcdl"),
     bintrayRepository := "releases",
     libraryDependencies ++= (dependencies ++ testDependencies),
