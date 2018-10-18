@@ -17,6 +17,8 @@ import scala.util.Try
 
 package object msb {
 
+  import scala.language.implicitConversions
+
   private val log = LoggerFactory.getLogger(getClass)
 
   implicit def function2EndCallback(f: (List[Message]) => Unit): Callback[java.util.List[Message]] = new Callback[java.util.List[Message]]() {
