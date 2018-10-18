@@ -5,7 +5,7 @@ lazy val root = (project in file(".")).
   settings (
     organization := "io.github.tcdl.msb",
     name := "msb-akka",
-    version := "0.1.16-SNAPSHOT",
+    version := "0.1.16",
     scalaVersion := "2.12.7",
     scalacOptions := Seq(
       "-unchecked",
