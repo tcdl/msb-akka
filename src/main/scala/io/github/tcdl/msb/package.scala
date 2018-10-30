@@ -58,7 +58,7 @@ package object msb {
   val objectMapper = new ObjectMapper()
     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
     .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-    .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+    .setSerializationInclusion(JsonInclude.Include.NON_ABSENT)
     .registerModule(new JSR310Module)
     .registerModule(DefaultScalaModule)
 
