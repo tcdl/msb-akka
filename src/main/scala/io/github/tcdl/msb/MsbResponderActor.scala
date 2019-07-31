@@ -46,6 +46,9 @@ trait MsbResponderActor extends Actor with ActorLogging {
     */
   def retryMode: PartialFunction[Throwable, RetryMode] = PartialFunction.empty
 
+  /** The retry mode that is applicable in case the processing of a message times out. */
+  def retryModeForTimeout: RetryMode = NoRetry
+
   override def preStart(): Unit = {
     super.preStart()
     responderServer.listen()
@@ -74,6 +77,11 @@ trait MsbResponderActor extends Actor with ActorLogging {
 
   import context.dispatcher
 
+  private val fullRetryMode: PartialFunction[Throwable, RetryMode] = retryMode orElse {
+    case _: ProcessingTimedOutException => retryModeForTimeout
+    case _: Throwable => NoRetry
+  }
+
   private val requestHandler: (RestPayload[_, _, _, _], ResponderContext) => Unit = { (payload, ctx) =>
     val request = IncomingRequest(payload, ResponderImpl(ctx.getResponder))
 
@@ -85,14 +93,14 @@ trait MsbResponderActor extends Actor with ActorLogging {
 
     // Set up a timer to trigger the timeout
     val timeout = akka.pattern.after(responderConfig.`request-handling-timeout`, context.system.scheduler) {
-      throw new IllegalStateException(s"MSBResponder message handling timed out after ${responderConfig.`request-handling-timeout`}.")
+      throw new ProcessingTimedOutException(s"MSBResponder message handling timed out after ${responderConfig.`request-handling-timeout`}.")
     }
 
     // Handle the results
     firstCompletedOf(timeout :: request.promise.future :: Nil) onComplete {
       case scala.util.Success(_) => ctx.getAcknowledgementHandler.confirmMessage()
       case Failure(e) =>
-        val mode = retryMode.orElse[Throwable, RetryMode]({ case _: Throwable => NoRetry })(e)
+        val mode = fullRetryMode(e)
         log.error(e, s"Unexpected failure while handling MSB message (retry mode for this message: {}).", mode)
 
         mode match {
@@ -109,6 +117,7 @@ object MsbResponderActor {
 
   case class Ack(timeout: FiniteDuration, remaining: Int = 0)
 
+  private class ProcessingTimedOutException(msg: String) extends RuntimeException(msg)
   private case class IncomingRequest(payload: RestPayload[_, _, _, _],
                                      responder: Responder,
                                      promise: Promise[Any] = Promise[Any])
