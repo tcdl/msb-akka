@@ -33,4 +33,5 @@ object MsbConfig extends ExtensionId[MsbConfigImpl] with ExtensionIdProvider {
 
 class ResponderConfig(msbConfig: Config) {
   val `request-handling-timeout`: FiniteDuration = msbConfig.getDuration("msbConfig.responder.request-handling-timeout").toMillis.millis
+  val retryOnTimeout: Boolean = msbConfig.getBoolean("msbConfig.responder.retry-on-timeout")
 }

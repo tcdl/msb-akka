@@ -47,7 +47,7 @@ trait MsbResponderActor extends Actor with ActorLogging {
   def retryMode: PartialFunction[Throwable, RetryMode] = PartialFunction.empty
 
   /** The retry mode that is applicable in case the processing of a message times out. */
-  def retryModeForTimeout: RetryMode = NoRetry
+  def retryModeForTimeout: RetryMode = if (responderConfig.retryOnTimeout) Retry else NoRetry
 
   override def preStart(): Unit = {
     super.preStart()
